@@ -285,7 +285,6 @@ def process_single_currency(symbol, market_stats):
 def main():
     print("--- Starting GitHub Actions KuCoin Scan Cycle ---")
 
-    # تحميل الذاكرة المستدامة
     memory = load_memory()
     scan_count = memory.get("scan_count", 0) + 1
     memory["scan_count"] = scan_count
@@ -329,24 +328,23 @@ def main():
                         else:
                             normal_results.append(item)
 
-            # ترتيب النتائج من الأعلى للأقل
             suspended_results.sort(key=lambda x: x["score"], reverse=True)
             normal_results.sort(key=lambda x: x["score"], reverse=True)
 
-            # 1. إرسال تقرير الحيتان والعملات الخاصة (إن وجدت)
+            # 1. إرسال تقرير العملات الخاصة مع تنسيق منظم يمنع تداخل الاتجاهات
             if suspended_results:
                 report_suspended = f"🚨 *تقرير الحيتان والعملات الخاصة (إيداع مغلق - Scan #{scan_count})*:\n\n"
                 for item in suspended_results:
-                    report_suspended += f"• `{item['symbol']}` | Score: *{item['score']}%* | السعر: `{item['price']}` | التغير: `{item['change']:+.2f}%` | الحالة: `{item['status']}`\n"
+                    report_suspended += f"• `{item['symbol']}` | 📊 `Score: {item['score']}%` | 💰 `السعر: {item['price']}` | 📉 `التغير: {item['change']:+.2f}%` | `{item['status']}`\n"
                 report_suspended += f"\n*إجمالي العملات الخاصة: {len(suspended_results)}*"
                 send_telegram_alert(report_suspended)
                 time.sleep(3)
 
-            # 2. إرسال تقرير السوق العادي (أعلى 45 عملة لضمان توافق حجم رسالة تيليجرام)
+            # 2. إرسال تقرير السوق العادي مع تنسيق منظم
             top_normal_results = normal_results[:45]
             report_normal = f"🚀 *KuCoin Scanner* - Scan Iteration: `{scan_count}`\n\n🟢 *تقرير السوق العادي (أعلى الفرص)*:\n\n"
             for item in top_normal_results:
-                report_normal += f"• `{item['symbol']}` | Score: *{item['score']}%* | السعر: `{item['price']}` | التغير: `{item['change']:+.2f}%` | الحالة: `{item['status']}`\n"
+                report_normal += f"• `{item['symbol']}` | 📊 `Score: {item['score']}%` | 💰 `السعر: {item['price']}` | 📉 `التغير: {item['change']:+.2f}%` | `{item['status']}`\n"
             report_normal += f"\n📊 تم عرض أعلى {len(top_normal_results)} عملة من أصل {len(normal_results)} سوق لضمان الاكتمال\n✅ Persistent memory updated."
 
             send_telegram_alert(report_normal)
