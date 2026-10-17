@@ -20,7 +20,7 @@ def send_telegram_alert(message):
         "parse_mode": "Markdown"
     }
     try:
-        response = requests.post(url, json=payload, timeout=10)
+        response = requests.post(url, json=payload, timeout=15)
         response.raise_for_status()
     except Exception as e:
         print(f"Failed to send Telegram message: {e}")
@@ -44,7 +44,7 @@ def save_memory(memory_data):
 def get_market_stats():
     url = "https://api.kucoin.com/api/v1/market/allTickers"
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=15)
         data = response.json()
         stats_map = {}
         if data.get("code") == "200000":
@@ -127,7 +127,7 @@ def calculate_opportunity_score_and_analytics(symbol, change):
     spread_ok = True
 
     try:
-        res_k = requests.get(klines_url, timeout=5)
+        res_k = requests.get(klines_url, timeout=8)
         data_k = res_k.json()
         if data_k.get("code") == "200000":
             candles = data_k.get("data", [])
@@ -147,7 +147,7 @@ def calculate_opportunity_score_and_analytics(symbol, change):
         pass
 
     try:
-        res_ob = requests.get(ob_url, timeout=5)
+        res_ob = requests.get(ob_url, timeout=8)
         data_ob = res_ob.json()
         if data_ob.get("code") == "200000":
             ob = data_ob.get("data", {})
@@ -212,7 +212,7 @@ def calculate_opportunity_score_and_analytics(symbol, change):
 def get_active_trading_symbols():
     url = "https://api.kucoin.com/api/v1/symbols"
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=15)
         data = response.json()
         active_coins = set()
         if data.get("code") == "200000":
@@ -227,7 +227,7 @@ def get_active_trading_symbols():
 def process_single_currency(symbol, market_stats):
     detail_url = f"https://api.kucoin.com/api/v3/currencies/{symbol}"
     try:
-        res_detail = requests.get(detail_url, timeout=5)
+        res_detail = requests.get(detail_url, timeout=8)
         detail_data = res_detail.json()
     except Exception:
         return None
@@ -283,7 +283,7 @@ def process_single_currency(symbol, market_stats):
     return None
 
 def main():
-    print("--- Starting GitHub Actions KuCoin Scan Cycle ---")
+    print("--- Starting GitHub Actions KuCoin Scan Cycle (Optimized) ---")
 
     memory = load_memory()
     scan_count = memory.get("scan_count", 0) + 1
@@ -299,7 +299,7 @@ def main():
     url_list = "https://api.kucoin.com/api/v1/currencies"
 
     try:
-        response = requests.get(url_list, timeout=10)
+        response = requests.get(url_list, timeout=15)
         data = response.json()
 
         if data.get("code") == "200000" and "data" in data:
@@ -314,9 +314,10 @@ def main():
             suspended_results = []
             normal_results = []
 
-            print(f"Scanning {len(symbols_to_check)} coins concurrently...")
+            print(f"Scanning {len(symbols_to_check)} coins with stable thread pacing...")
 
-            with ThreadPoolExecutor(max_workers=10) as executor:
+            # تقليل عدد العمليات المتوازية إلى 4 لضمان عدم ضياع أي طلب بسبب سرعة السيرفرات الزائدة
+            with ThreadPoolExecutor(max_workers=4) as executor:
                 futures = {executor.submit(process_single_currency, sym, market_stats): sym for sym in symbols_to_check}
 
                 for future in as_completed(futures):
@@ -331,7 +332,7 @@ def main():
             suspended_results.sort(key=lambda x: x["score"], reverse=True)
             normal_results.sort(key=lambda x: x["score"], reverse=True)
 
-            # 1. إرسال تقرير العملات الخاصة مع تنسيق منظم يمنع تداخل الاتجاهات
+            # 1. إرسال تقرير العملات الخاصة بكامل العدد الصحيح
             if suspended_results:
                 report_suspended = f"🚨 *تقرير الحيتان والعملات الخاصة (إيداع مغلق - Scan #{scan_count})*:\n\n"
                 for item in suspended_results:
@@ -340,7 +341,7 @@ def main():
                 send_telegram_alert(report_suspended)
                 time.sleep(3)
 
-            # 2. إرسال تقرير السوق العادي مع تنسيق منظم
+            # 2. إرسال تقرير السوق العادي
             top_normal_results = normal_results[:45]
             report_normal = f"🚀 *KuCoin Scanner* - Scan Iteration: `{scan_count}`\n\n🟢 *تقرير السوق العادي (أعلى الفرص)*:\n\n"
             for item in top_normal_results:
@@ -348,7 +349,7 @@ def main():
             report_normal += f"\n📊 تم عرض أعلى {len(top_normal_results)} عملة من أصل {len(normal_results)} سوق لضمان الاكتمال\n✅ Persistent memory updated."
 
             send_telegram_alert(report_normal)
-            print("Scan Cycle Completed and Reports Sent Successfully!")
+            print("Scan Cycle Completed and Accurate Reports Sent Successfully!")
 
     except Exception as e:
         print(f"An error occurred: {e}")
